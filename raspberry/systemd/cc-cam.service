@@ -1,0 +1,12 @@
+[Unit]
+Description=CC-Printer A1 webcam (Picamera2 MJPEG, 127.0.0.1:8080)
+After=network.target
+
+[Service]
+User=chori
+ExecStart=/usr/bin/python3 /home/chori/cc-cam/cam_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

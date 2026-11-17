@@ -1,0 +1,24 @@
+# Red de casa: la IP del cliente es la real de la conexion.
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    access_log /var/log/nginx/fluidd-access.log;
+    error_log /var/log/nginx/fluidd-error.log;
+    set $cc_client_ip $remote_addr;
+    include snippets/cc-webcam.conf;
+    include snippets/cc-webcam-secret.conf;   # camara con ruta secreta (ver ~/cc-cam/rotar_link_camara.sh)
+    include snippets/cc-fluidd-common.conf;
+}
+
+# Tunel de Cloudflare (cloudflared -> 127.0.0.1:8081). Solo escucha en loopback.
+server {
+    listen 127.0.0.1:8081;
+    server_name _;
+    access_log /var/log/nginx/fluidd-tunnel-access.log;
+    error_log /var/log/nginx/fluidd-tunnel-error.log;
+    set $cc_client_ip $cc_tunnel_client_ip;
+    location /webcam/ { return 403; }   # la ruta conocida de la camara sigue bloqueada desde internet
+    include snippets/cc-webcam-secret.conf;   # camara solo con la ruta secreta que Moonraker da a usuarios logueados
+    include snippets/cc-fluidd-common.conf;
+}

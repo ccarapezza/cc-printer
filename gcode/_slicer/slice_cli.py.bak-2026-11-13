@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""Slice N copies of an STL with CuraEngine CLI using the settings Cura's GUI resolved
+(base: 'Diario 0.2' slice 16:40; strong-part keys taken from the 03:21 strong slice)."""
+import re, struct, subprocess, sys, os
+STL, OUT, N = sys.argv[1], sys.argv[2], int(sys.argv[3])
+GAP = 10.0
+HERE = os.path.dirname(os.path.abspath(__file__))
+def parse(a):
+    a = a.replace("[WARNING]  ", "", 1)
+    g, rest = a.split(" -e0 ", 1); e, _ = rest.split(" -g ", 1)
+    pat = re.compile(r'-s ([A-Za-z0-9_]+)="(.*?)"(?=\s+-s |\s*$)', re.S)
+    return dict(pat.findall(g)), dict(pat.findall(e))
+G_strong, E_strong = parse(open(os.path.join(HERE,"base_resistente_0321.args")).read())
+G, E = parse(open(os.path.join(HERE,"base_diario_1640.args")).read())
+STRONG_KEYS = ["wall_line_count", "infill_pattern", "infill_sparse_density", "infill_line_distance",
+    "cross_infill_pocket_size", "bottom_skin_expand_distance", "bottom_skin_preshrink",
+    "expand_skins_expand_distance", "skin_preshrink", "top_skin_expand_distance", "top_skin_preshrink",
+    "cool_fan_speed", "cool_fan_speed_max", "cool_fan_speed_min",
+    "material_break_preparation_temperature", "material_final_print_temperature",
+    "material_initial_print_temperature", "material_print_temperature", "material_print_temperature_layer_0"]
+for k in STRONG_KEYS:
+    E[k] = E_strong[k]
+G["machine_start_gcode"] = G_strong["machine_start_gcode"]          # M109 S210
+assert "M109 S210" in G["machine_start_gcode"]
+G["time"] = G["date"] = ""
+
+# --- N copies stacked along Y, centred on (0,0) (engine adds the bed centre) ---
+d = open(STL, "rb").read(); n = struct.unpack("<I", d[80:84])[0]
+tris = [struct.unpack("<12f", d[84+i*50:84+i*50+48]) for i in range(n)]
+xs = [t[j] for t in tris for j in (3,6,9)]; ys = [t[j] for t in tris for j in (4,7,10)]; zs = [t[j] for t in tris for j in (5,8,11)]
+cx, cy, z0 = (min(xs)+max(xs))/2, (min(ys)+max(ys))/2, min(zs)
+h = max(ys)-min(ys); pitch = h + GAP
+out = bytearray(80) + struct.pack("<I", n*N)
+for k in range(N):
+    dy = (k - (N-1)/2) * pitch
+    for t in tris:
+        v = list(t)
+        for j in (3,6,9): v[j] -= cx
+        for j in (4,7,10): v[j] += dy - cy
+        for j in (5,8,11): v[j] -= z0
+        out += struct.pack("<12fH", *v, 0)
+comb = os.path.join(HERE, "combined.stl"); open(comb, "wb").write(out)
+print(f"{N} copias, pieza {max(xs)-min(xs):.1f} x {h:.1f} x {max(zs)-z0:.1f} mm, bloque Y {N*h+(N-1)*GAP:.1f} mm")
+
+defs = "/usr/share/cura/resources/definitions"
+cmd = ["CuraEngine", "slice", "-o", OUT, "-j", f"{defs}/fdmprinter.def.json"]
+for k, v in G.items(): cmd += ["-s", f"{k}={v}"]
+cmd += ["-e0"]
+for k, v in E.items(): cmd += ["-s", f"{k}={v}"]
+cmd += ["-g", "-e0", "-l", comb, "-s", "extruder_nr=0"]
+env = dict(os.environ, CURA_ENGINE_SEARCH_PATH=f"{defs}:/usr/share/cura/resources/extruders")
+r = subprocess.run(cmd, env=env, capture_output=True, text=True)
+errs = [l for l in (r.stdout + r.stderr).splitlines() if re.search(r"error|warning|fail", l, re.I)]
+print("exit", r.returncode); print("\n".join(errs[-15:]))

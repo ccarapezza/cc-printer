@@ -1,0 +1,158 @@
+# =====================================================================================
+#  CC-Printer A1 - Klipper
+#  Traducido de Marlin 2.1.2 v3 (Configuration.h / pins_RAMPS.h), 2026-11-16.
+#  Placa: Arduino Mega 2560 (clon CH340) + RAMPS 1.5
+#  Drivers: TMC2208 standalone en X/Y/Z, A4988 en E0, todos a 1/16
+#  Motores: 0,9 grados (400 pasos/vuelta) en los 4 ejes
+#  Copia maestra en la PC: Marlin-2.1.2/raspberry/klipper/printer.cfg
+# =====================================================================================
+
+[include macros.cfg]
+
+[mcu]
+serial: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0   # Mega clon CH340
+baud: 250000
+restart_method: arduino
+
+[printer]
+kinematics: cartesian
+max_velocity: 60            # tope: a 80 mm/s X e Y pierden pasos (StealthChop + 12 V + 0,9 grados); = M203 X60 Y60
+max_accel: 3000             # DEFAULT_MAX_ACCELERATION / DEFAULT_ACCELERATION
+square_corner_velocity: 5.0
+max_z_velocity: 5           # DEFAULT_MAX_FEEDRATE Z
+max_z_accel: 100            # DEFAULT_MAX_ACCELERATION Z
+
+# --- Ejes ------------------------------------------------------------------------------
+# rotation_distance = 400 pasos * 16 micropasos / (pasos por mm de Marlin)
+# endstop_pin "^!": pullup (ENDSTOPPULLUPS) + invertido (*_MIN_ENDSTOP_INVERTING true)
+[stepper_x]
+step_pin: PF0               # D54
+dir_pin: PF1                # D55  (INVERT_X_DIR false)
+enable_pin: !PD7            # D38
+microsteps: 16
+full_steps_per_rotation: 400
+rotation_distance: 31.892   # M92 X200.68
+endstop_pin: ^!PE5          # X_MIN, D3
+position_endstop: -25       # X_MIN_POS
+position_min: -25
+position_max: 225           # X_MAX_POS = X_BED_SIZE - X_MIN_POS (igual que en Marlin)
+homing_speed: 50            # HOMING_FEEDRATE_MM_M
+second_homing_speed: 25     # / HOMING_BUMP_DIVISOR 2
+homing_retract_dist: 5      # HOMING_BUMP_MM
+
+[stepper_y]
+step_pin: PF6               # D60
+dir_pin: PF7                # D61  (INVERT_Y_DIR false)
+enable_pin: !PF2            # D56
+microsteps: 16
+full_steps_per_rotation: 400
+rotation_distance: 31.892   # M92 Y200.68
+endstop_pin: ^!PJ1          # Y_MIN, D14
+position_endstop: -25
+position_min: -25
+position_max: 225
+homing_speed: 50
+second_homing_speed: 25
+homing_retract_dist: 5
+
+[stepper_z]
+step_pin: PL3               # D46
+dir_pin: !PL1               # D48  (INVERT_Z_DIR true)
+enable_pin: !PK0            # D62
+microsteps: 16
+full_steps_per_rotation: 400
+rotation_distance: 8        # M92 Z800 (varilla T8, avance 8 mm)
+endstop_pin: ^!PD3          # Z_MIN, D18
+position_endstop: 0
+position_min: -1            # margen para ajustar Z con offset negativo (babystep)
+position_max: 200           # Z_MAX_POS
+homing_speed: 4             # HOMING_FEEDRATE Z
+second_homing_speed: 1      # / HOMING_BUMP_DIVISOR 4
+homing_retract_dist: 2
+
+# --- Extrusor y hotend -----------------------------------------------------------------
+[extruder]
+step_pin: PA4               # D26
+dir_pin: !PA6               # D28  (INVERT_E0_DIR true)
+enable_pin: !PA2            # D24
+microsteps: 16
+full_steps_per_rotation: 400
+rotation_distance: 36.353   # M92 E176.05 (verificado 2026-11-13)
+nozzle_diameter: 0.400
+filament_diameter: 1.750
+max_extrude_only_distance: 200   # EXTRUDE_MAXLENGTH
+max_extrude_only_velocity: 25    # DEFAULT_MAX_FEEDRATE E
+min_extrude_temp: 170            # EXTRUDE_MINTEMP
+pressure_advance: 0.0            # pendiente de calibrar
+heater_pin: PB4             # D10
+sensor_type: ATC Semitec 104GT-2   # TEMP_SENSOR_0 = 5
+sensor_pin: PK5             # A13
+control: pid                # PID de Marlin (M303 E0 S200, ventilador 100 %); repetir con PID_CALIBRATE
+pid_Kp: 34.48
+pid_Ki: 2.88
+pid_Kd: 103.11
+min_temp: 0
+max_temp: 250               # Marlin cortaba a 260 (HEATER_0_MAXTEMP)
+
+[heater_bed]
+heater_pin: PH5             # D8 -> MOSFET externo de la cama
+sensor_type: EPCOS 100K B57560G104F   # TEMP_SENSOR_BED = 1
+sensor_pin: PK6             # A14
+control: pid                # PID de Marlin (M303 E-1 S60)
+pid_Kp: 79.49
+pid_Ki: 3.98
+pid_Kd: 1059.33
+min_temp: 0
+max_temp: 130               # Marlin cortaba a 150 (BED_MAXTEMP)
+
+[fan]
+pin: PH6                    # D9, ventilador de capa
+# El ventilador del disipador del hotend va directo a 12 V (E0_AUTO_FAN_PIN -1).
+
+# --- Pantalla RepRapDiscount Full Graphic (adaptador RRD) ------------------------------
+[display]
+lcd_type: st7920
+cs_pin: PH1                 # D16  EXP1_4
+sclk_pin: PA1               # D23  EXP1_5
+sid_pin: PH0                # D17  EXP1_3
+encoder_pins: ^PC6, ^PC4    # D31, D33 (EXP2_3, EXP2_5). Si la perilla va al reves, invertir el orden.
+click_pin: ^!PC2            # D35  EXP1_2
+kill_pin: ^!PG0             # D41  EXP2_8 (boton de parada de la pantalla)
+
+[output_pin beeper]
+pin: PC0                    # D37  EXP1_1
+
+# --- Movimiento ------------------------------------------------------------------------
+[input_shaper]              # = M593 F40 D0.15 de Marlin; recalibrar con el ADXL345
+shaper_type_x: zv
+shaper_freq_x: 40
+damping_ratio_x: 0.15
+shaper_type_y: zv
+shaper_freq_y: 40
+damping_ratio_y: 0.15
+
+[bed_screws]                # = LCD_BED_TRAMMING (BED_TRAMMING_INSET_LFRB 30)
+screw1: 30, 30
+screw2: 170, 30
+screw3: 170, 170
+screw4: 30, 170
+horizontal_move_z: 5
+speed: 50
+
+# --- Servicios -------------------------------------------------------------------------
+[virtual_sdcard]
+path: ~/printer_data/gcodes
+on_error_gcode: CANCEL_PRINT
+
+[display_status]
+[pause_resume]
+[exclude_object]
+[respond]
+[force_move]
+enable_force_move: True     # para las pruebas de puesta en marcha (FORCE_MOVE / STEPPER_BUZZ)
+
+[idle_timeout]
+timeout: 1800               # 30 min sin actividad: apaga calentadores y motores
+
+[temperature_sensor raspberry_pi]
+sensor_type: temperature_host
